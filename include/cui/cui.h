@@ -4943,10 +4943,27 @@ CUI_API void cui_push_clip(cui_ctx *ui, cui_rect r);
 CUI_API void cui_pop_clip(cui_ctx *ui);
 
 /* Canvas: a box of the given size that you paint yourself. The callback
- * runs after layout, with the final rectangle. Returns interaction info. */
+ * runs after layout, with the final rectangle; inside a disabled scope
+ * (cui_push_disabled) it sees cui_is_disabled return true. Returns
+ * interaction info. */
 typedef void (*cui_paint_fn)(cui_ctx *ui, cui_rect rect, void *user);
 typedef struct cui_canvas_result { cui_rect rect; bool hovered, pressed, clicked; cui_vec2 mouse; } cui_canvas_result;
 CUI_API cui_canvas_result cui_canvas(cui_ctx *ui, const char *id, cui_size width, cui_size height, cui_paint_fn paint, const void *user, size_t user_size);
+
+/* Marks the part of a canvas that takes the wheel, for a canvas that zooms,
+ * pans or scrolls what it draws the way the built-in charts, graphs and
+ * timelines do. Call it from the paint callback; over the rectangle the wheel
+ * stops there instead of scrolling an enclosing scroll area or the page. Give
+ * it an id of its own, not the canvas's: the region keeps scroll state under
+ * that id. A canvas in a disabled scope marks nothing, so the wheel scrolls
+ * the page there. Like every hit area, the region is the one painted on the
+ * previous frame. */
+CUI_API void cui_wheel_region(cui_ctx *ui, cui_id id, cui_rect rect);
+/* Returns the wheel aimed at a cui_wheel_region id this frame, in lines with
+ * +y up as cui_input_scroll gives it, and consumes it, so call it once per
+ * frame. Returns false and leaves *delta alone when no wheel came, and in a
+ * disabled scope: call it in the scope the canvas was built in. */
+CUI_API bool cui_wheel_take(cui_ctx *ui, cui_id id, cui_vec2 *delta);
 
 /* Persistent per-id storage for your own components (zeroed on first use).
  * State not used for about 300 frames is freed (and zeroed again if it comes

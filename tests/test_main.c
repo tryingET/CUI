@@ -972,6 +972,103 @@ static void test_nested_textarea_wheel(void) {
     cui_destroy(ui);
 }
 
+/** A canvas in a scrolling page that takes the wheel over its left half. */
+typedef struct { cui_id canvas, wheel; bool region, disabled; int takes; cui_vec2 got; } wheel_canvas;
+static void paint_wheel_canvas(cui_ctx *ui, cui_rect r, void *user) {
+    const wheel_canvas *w = user;
+    if (w->region) cui_wheel_region(ui, w->wheel, (cui_rect){ r.x, r.y, r.w / 2, r.h });
+    CHECK(cui_is_disabled(ui) == w->disabled);      /* paint sees the scope the canvas was built in */
+}
+static void build_wheel_canvas(cui_ctx *ui, void *user) {
+    wheel_canvas *w = user;
+    cui_scroll(ui, .id = "page", .height = CUI_PX(180), .width = CUI_PX(320)) {
+        cui_box(ui, .height = CUI_PX(40)) {}
+        w->wheel = cui_make_id(ui, "zoom");
+        cui_push_disabled(ui, w->disabled);
+        cui_canvas(ui, "art", CUI_PX(300), CUI_PX(100), paint_wheel_canvas, w, sizeof *w);
+        w->canvas = cui_last_id(ui);
+        cui_vec2 d = { 0, 0 };                      /* taken in the canvas's own scope */
+        if (cui_wheel_take(ui, w->wheel, &d)) {
+            w->takes++;
+            w->got = d;
+            CHECK(!cui_wheel_take(ui, w->wheel, &d));   /* consumed */
+        }
+        cui_pop_disabled(ui);
+        cui_box(ui, .height = CUI_PX(400)) {}
+    }
+}
+
+/** The wheel goes to a canvas's region and nowhere else; around it the page scrolls. */
+static void test_canvas_wheel(void) {
+    printf("canvas: wheel region in a scrolling page\n");
+    cui_ctx *ui = new_ctx();
+    wheel_canvas w = { .region = true };
+    run(ui, build_wheel_canvas, &w, 2);
+    const cui_rect before = rect_of(ui, w.canvas);
+    CHECK(before.h > 90);
+
+    cui_input_mouse_move(ui, before.x + before.w / 4, before.y + before.h / 2);
+    run(ui, build_wheel_canvas, &w, 1);
+    cui_input_scroll(ui, 0.5f, -1);
+    run(ui, build_wheel_canvas, &w, 20);
+    CHECK(w.takes == 1);
+    CHECK_NEAR(w.got.x, 0.5, 1e-6);
+    CHECK_NEAR(w.got.y, -1, 1e-6);
+    CHECK_NEAR(rect_of(ui, w.canvas).y, before.y, 0.01);   /* the page stayed */
+
+    cui_input_mouse_move(ui, before.x + before.w * 3 / 4, before.y + before.h / 2);
+    run(ui, build_wheel_canvas, &w, 1);
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &w, 30);
+    CHECK(w.takes == 1);                                    /* outside the region */
+    CHECK(rect_of(ui, w.canvas).y < before.y - 1);         /* the page scrolled */
+    cui_destroy(ui);
+
+    ui = new_ctx();                                         /* no region: as before */
+    wheel_canvas plain = { .region = false };
+    run(ui, build_wheel_canvas, &plain, 2);
+    const cui_rect at = rect_of(ui, plain.canvas);
+    cui_input_mouse_move(ui, at.x + at.w / 4, at.y + at.h / 2);
+    run(ui, build_wheel_canvas, &plain, 1);
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &plain, 30);
+    CHECK(plain.takes == 0);
+    CHECK(rect_of(ui, plain.canvas).y < at.y - 1);
+    cui_destroy(ui);
+
+    ui = new_ctx();                                         /* in a disabled scope: not taken */
+    wheel_canvas off = { .region = true, .disabled = true };
+    run(ui, build_wheel_canvas, &off, 2);
+    const cui_rect o = rect_of(ui, off.canvas);
+    cui_input_mouse_move(ui, o.x + o.w / 4, o.y + o.h / 2);
+    run(ui, build_wheel_canvas, &off, 1);
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &off, 20);
+    CHECK(off.takes == 0);
+    CHECK(rect_of(ui, off.canvas).y < o.y - 1);             /* the page took it */
+    cui_destroy(ui);
+
+    ui = new_ctx();                                         /* turns disabled: not taken from then on */
+    wheel_canvas turn = { .region = true };
+    run(ui, build_wheel_canvas, &turn, 2);
+    const cui_rect t = rect_of(ui, turn.canvas);
+    cui_input_mouse_move(ui, t.x + t.w / 4, t.y + t.h / 2);
+    run(ui, build_wheel_canvas, &turn, 1);
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &turn, 20);
+    CHECK(turn.takes == 1);
+    turn.disabled = true;                                   /* the wheel is still aimed by the enabled region */
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &turn, 20);
+    CHECK(turn.takes == 1);
+    CHECK_NEAR(rect_of(ui, turn.canvas).y, t.y, 0.01);      /* dropped: the page did not move either */
+    cui_input_scroll(ui, 0, -1);
+    run(ui, build_wheel_canvas, &turn, 20);
+    CHECK(turn.takes == 1);
+    CHECK(rect_of(ui, turn.canvas).y < t.y - 1);            /* no region now: the page took it */
+    cui_destroy(ui);
+}
+
 /** A page whose canvas has zoom controls floating over it. */
 static void build_canvas_rail_page(cui_ctx *ui, void *user) {
     cui_id *anchor = user;
@@ -9633,6 +9730,7 @@ int main(void) {
     test_textarea_and_clear();
     test_textarea_ime_caret();
     test_nested_textarea_wheel();
+    test_canvas_wheel();
     test_nested_textarea_mixed_wheel();
     test_canvas_rail_wheel();
     test_number_edit_commit();
