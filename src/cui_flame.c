@@ -11,7 +11,11 @@
  *
  * The trace viewer (lanes of such rows) and the network waterfall share the
  * ruler, the colors and the bars; they are at the end of the file. */
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE) && !defined(_GNU_SOURCE)
+#define _POSIX_C_SOURCE 200809L   /* localtime_r */
+#endif
 #include "cui_internal.h"
+#include <time.h>
 
 #define CUI__FL_RULER 24.0f    /* time ruler along the top */
 #define CUI__FL_ROW   20.0f    /* default row height (bars are a point shorter) */
@@ -47,6 +51,7 @@ typedef struct {
     cui__fl_item *items; int n, cap;
     bool has_sel; cui__fl_item sel;
     double t0, t1, origin;
+    double epoch;              /* NAN: the ruler counts durations from origin; else time 0 is this Unix time and it reads the local clock */
     float row_h, scroll, content_h, focus;
     bool empty;
 } cui__fl_paint;
@@ -168,7 +173,53 @@ const char *cui__fl_tick(cui_ctx *ui, double t, double step) {
 /* The time ruler: ticks a nice step apart with their labels, inside `rr` (its bottom edge is the
  * baseline), and grid lines `grid_h` tall below it. Time t sits at px0 + (t - t0) * pw / (t1 - t0);
  * labels count from `origin`. Returns the step. */
-double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double origin) {
+/* A clock tick: time `t` (Unix seconds) in local time, as precise as the step needs - "14:05:30",
+ * "14:05", a day's start as "Sat 15 Nov", whole days as "Sat 15 Nov", long steps as "15 Nov 26". */
+const char *cui__fl_clock_tick(cui_ctx *ui, double t, double step) {
+    time_t s = (time_t)floor(t + 1e-6);
+    struct tm tm;
+#if defined(_WIN32)
+    localtime_s(&tm, &s);
+#else
+    localtime_r(&s, &tm);
+#endif
+    char buf[48];
+    if (step < 1) {
+        int ms = (int)llround((t - floor(t + 1e-6)) * 1000);
+        if (ms >= 1000) ms = 999;
+        strftime(buf, sizeof buf, "%H:%M:%S", &tm);
+        return cui__frame_printf(ui, "%s.%03d", buf, ms);
+    }
+    bool midnight = tm.tm_hour == 0 && tm.tm_min == 0 && tm.tm_sec == 0;
+    const char *fmt = step < 60 ? "%H:%M:%S" : step < 86400 ? (midnight ? "%a %d %b" : "%H:%M") : step < 20 * 86400 ? "%a %d %b" : "%d %b %y";
+    strftime(buf, sizeof buf, fmt, &tm);
+    return cui__frame_printf(ui, "%s", buf);
+}
+
+/* the label of tick q: a duration from origin, or with an epoch the clock time it falls on */
+static const char *cui__fl_label(cui_ctx *ui, double q, double step, double origin, double epoch) {
+    if (isnan(epoch)) return cui__fl_tick(ui, q * step, step);
+    return cui__fl_clock_tick(ui, epoch + origin + q * step, step);
+}
+
+/* With an epoch, ticks fall on the local clock: the origin is the local midnight before t0, so a
+ * 6 h step reads 00:00, 06:00, 12:00 (a daylight-saving change shifts a view across it by an hour). */
+double cui__fl_clock_origin(double t0, double epoch) {
+    time_t s = (time_t)floor(epoch + t0);
+    struct tm tm;
+#if defined(_WIN32)
+    localtime_s(&tm, &s);
+#else
+    localtime_r(&s, &tm);
+#endif
+    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    return (double)mktime(&tm) - epoch;
+}
+
+static double cui__fl_ruler_step_ex(cui_ctx *ui, float pw, double t0, double t1, double origin, double epoch);
+double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double origin) { return cui__fl_ruler_step_ex(ui, pw, t0, t1, origin, NAN); }
+static double cui__fl_ruler_step_ex(cui_ctx *ui, float pw, double t0, double t1, double origin, double epoch) {
     double range = t1 - t0;
     float k = (float)(pw / range);
     float fs = cui__fs(ui, ui->theme.text_xs);
@@ -184,7 +235,7 @@ double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double or
         float lw = 0;
         bool many = !(last - first <= 200) || !(fabs(first) < 4e15 && fabs(last) < 4e15);
         for (long long i = 0, n = many || last < first ? -1 : (long long)(last - first); i <= n; i++)
-            lw = fmaxf(lw, cui__text_width(ui, CUI_FONT_BODY, fs, cui__fl_tick(ui, (first + (double)i) * step, step), -1, true));
+            lw = fmaxf(lw, cui__text_width(ui, CUI_FONT_BODY, fs, cui__fl_label(ui, first + (double)i, step, origin, epoch), -1, true));
         if (!many && (float)(step * k) >= lw + 16) break;
         step = cui__fl_step(step * 1.01);   /* the next step up: 1, 2, 5, 10 ... 30 s, 1 min, 2 min ... */
     }
@@ -198,10 +249,11 @@ float cui__fl_tick_x(float px0, double k, double t0, double origin, double q, do
     return px0 + (float)((q * step - (t0 - origin)) * k);
 }
 
-static double cui__fl_ruler(cui_ctx *ui, cui_rect rr, float px0, float pw, double t0, double t1, double origin, float grid_h) {
+static double cui__fl_ruler(cui_ctx *ui, cui_rect rr, float px0, float pw, double t0, double t1, double origin, double epoch, float grid_h) {
     float k = (float)(pw / (t1 - t0));
     float fs = cui__fs(ui, ui->theme.text_xs);
-    double step = cui__fl_ruler_step(ui, pw, t0, t1, origin);
+    if (!isnan(epoch)) origin = cui__fl_clock_origin(t0, epoch);
+    double step = cui__fl_ruler_step_ex(ui, pw, t0, t1, origin, epoch);
     double first = ceil((t0 - origin) / step - 1e-9);
     double last = floor((t1 - origin) / step + 1e-9);
     float fh = cui__font_line_height(ui, CUI_FONT_BODY, fs);
@@ -212,7 +264,7 @@ static double cui__fl_ruler(cui_ctx *ui, cui_rect rr, float px0, float pw, doubl
         float x = floorf(cui__fl_tick_x(px0, k, t0, origin, q, step));
         if (grid_h > 0) cui_draw_rect(ui, (cui_rect){ x, rr.y + rr.h + 1, 1, grid_h }, CUI_CORNERS(0), grid);
         cui_draw_rect(ui, (cui_rect){ x, rr.y + rr.h - 5, 1, 5 }, CUI_CORNERS(0), CUI_C(ui, BORDER_STRONG));
-        const char *lbl = cui__fl_tick(ui, q * step, step);
+        const char *lbl = cui__fl_label(ui, q, step, origin, epoch);
         float lw = cui__text_width(ui, CUI_FONT_BODY, fs, lbl, -1, true);
         if (x + 4 + lw <= rr.x + rr.w - 6)
             cui__draw_text_line(ui, CUI_FONT_BODY, fs, x + 4, rr.y + (rr.h - 4 - fh) * 0.5f, CUI_C(ui, TEXT_MUTED), lbl, -1, true);
@@ -294,7 +346,7 @@ static void cui__paint_flame(cui_ctx *ui, cui_node *n, void *data) {
     cui_corners rc = { rad - 1, rad - 1, 0, 0 };
     cui_draw_rect(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, rc, CUI_C(ui, SURFACE_MUTED));
     cui_draw_rect(ui, (cui_rect){ r.x, r.y + CUI__FL_RULER, r.w, 1 }, CUI_CORNERS(0), CUI_C(ui, BORDER));
-    if (k > 0) cui__fl_ruler(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, px0, pw, p->t0, p->t1, p->origin, r.h - CUI__FL_RULER - 2);
+    if (k > 0) cui__fl_ruler(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, px0, pw, p->t0, p->t1, p->origin, NAN, r.h - CUI__FL_RULER - 2);
     /* rows */
     cui_push_clip(ui, body);
     for (int i = 0; i < p->n; i++) cui__fl_bar(ui, p, &p->items[i], px0, k, body_y, body, false);
@@ -906,7 +958,7 @@ static void cui__paint_wf_head(cui_ctx *ui, cui_node *n, void *data) {
     cui__wf_scale *b = data;
     cui_rect r = n->rect;
     float px0 = r.x + CUI__WF_PADX, pw = CUI_MAX(1.0f, r.w - 2 * CUI__WF_PADX);
-    b->step = cui__fl_ruler(ui, r, px0, pw, 0, b->end, 0, 0);
+    b->step = cui__fl_ruler(ui, r, px0, pw, 0, b->end, 0, NAN, 0);
     cui__wf_lines(ui, b, (cui_rect){ r.x, r.y + r.h - 6, r.w, 6 }, px0, (float)(pw / b->end));
 }
 
@@ -1485,7 +1537,7 @@ static void cui__paint_trace(cui_ctx *ui, cui_node *n, void *data) {
     cui__tr_paint_gutter(ui, p, (cui_rect){ r.x, plot.y, G - 1, plot.h }, body_y);
     cui_pop_clip(ui);
     cui_push_clip(ui, (cui_rect){ plot.x, r.y, plot.w, r.h });
-    if (k > 0) cui__fl_ruler(ui, (cui_rect){ plot.x, r.y, plot.w, CUI__FL_RULER }, px0, pw, fp->t0, fp->t1, fp->origin, r.h - CUI__FL_RULER - 2);
+    if (k > 0) cui__fl_ruler(ui, (cui_rect){ plot.x, r.y, plot.w, CUI__FL_RULER }, px0, pw, fp->t0, fp->t1, fp->origin, fp->epoch, r.h - CUI__FL_RULER - 2);
     cui_push_clip(ui, plot);
     for (int i = 0; i < fp->n; i++) cui__fl_bar(ui, fp, &fp->items[i], px0, k, body_y, plot, false);
     if (fp->has_sel) cui__fl_bar(ui, fp, &fp->sel, px0, k, body_y, plot, true);
@@ -1849,6 +1901,7 @@ static void cui__trf_build(cui__trf *f, int *node, cui__tr_paint **out) {
     memset(p, 0, sizeof *p);
     cui__fl_paint *fp = &p->fp;
     fp->t0 = v->start; fp->t1 = v->end; fp->origin = c->dmin;
+    fp->epoch = o->clock_epoch != 0 ? o->clock_epoch : NAN;
     fp->row_h = c->row_h; fp->scroll = v->scroll; fp->content_h = c->rows * c->row_h;
     fp->empty = c->n == 0;
     cui__tween(ui, &f->st->fl.focus, f->bi.focus_visible ? 1.0f : 0.0f, CUI__T_FOCUS);

@@ -4362,6 +4362,8 @@ typedef struct cui_trace_opts {
     cui_size width;
     float height;                    /* default 320 */
     float row_height;                /* default 20 */
+    double clock_epoch;              /* nonzero: span time 0 is this Unix time (seconds) and the ruler reads the local clock -
+                                        "14:00", "Sat 15 Nov" - on whole clock steps, where it counts durations otherwise */
     const cui_trace_marker *markers; /* moments drawn as lines across every lane, named in a strip under the ruler */
     int marker_count;                /* number of `markers` */
     const cui_trace_link *links;     /* dependencies drawn as curves between spans */

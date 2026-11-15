@@ -934,6 +934,8 @@ const char *cui__fl_dur(cui_ctx *ui, double s);
 const char *cui__fl_tick(cui_ctx *ui, double t, double step);
 double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double origin);
 float cui__fl_tick_x(float px0, double k, double t0, double origin, double q, double step);
+const char *cui__fl_clock_tick(cui_ctx *ui, double t, double step);
+double cui__fl_clock_origin(double t0, double epoch);
 float cui__text_width(cui_ctx *ui, cui_font font, float size, const char *text, int len, bool tabular);
 static void test_time_ruler(void) {
     printf("time ruler: steps and units past a minute (hours-long and days-long traces)\n");
@@ -1024,6 +1026,29 @@ static void test_time_ruler(void) {
         cui_end_frame(ui);
     }
     CHECK(deep.end > deep.start);
+    /* clock_epoch: the ruler reads the local clock on whole clock steps */
+    {
+        setenv("TZ", "UTC", 1);
+        tzset();
+        double sat = 1763164800;   /* Sat 15 Nov 2025 00:00 UTC */
+        cui_begin_frame(ui, 1.0f / 60.0f);
+        CHECK_STR(cui__fl_clock_tick(ui, sat + 14 * 3600, 3600), "14:00");
+        CHECK_STR(cui__fl_clock_tick(ui, sat, 3600), "Sat 15 Nov");          /* a day's start names the day */
+        CHECK_STR(cui__fl_clock_tick(ui, sat + 14 * 3600 + 5 * 60 + 30, 30), "14:05:30");
+        CHECK_STR(cui__fl_clock_tick(ui, sat + 86400, 86400), "Sun 16 Nov");
+        CHECK_STR(cui__fl_clock_tick(ui, sat + 1.25, 0.25), "00:00:01.250");
+        cui_end_frame(ui);
+        CHECK(cui__fl_clock_origin(14 * 3600 + 7, sat) == 0);           /* midnight before t0, in view time */
+        CHECK(cui__fl_clock_origin(30 * 3600, sat) == 86400);
+        static cui_trace_track ct[1] = { { "Lane" } };
+        static cui_trace_span cs[1] = { { "Work", 3600, 7200, 0, 0 } };
+        cui_trace_view cv = { 0, 86400, 0 };
+        int csel = -1;
+        cui_begin_frame(ui, 1.0f / 60.0f);
+        cui_trace_view(ui, "clock", ct, 1, cs, 1, &cv, &csel, .height = 200, .clock_epoch = sat);
+        cui_end_frame(ui);
+        CHECK(cv.end > cv.start);
+    }
     cui_destroy(ui);
 }
 

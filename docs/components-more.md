@@ -1322,6 +1322,8 @@ cui_trace_result r = cui_trace_view(ui, "trace", tracks, 3, spans, span_count, &
 if (r.hovered_link >= 0) cui_tooltip(ui, "waits on the upload");
 ```
 
+For a recording of real activity (agent sessions, a server's day), set `.clock_epoch` to the Unix time of span time 0: the ruler then reads the local clock on whole clock steps ("14:00", "14:05:30", a day's start as "Sat 15 Nov") where it would count durations from the first span.
+
 ### Regex tester
 
 A pattern, its flags and a test text, with every match and group highlighted.
