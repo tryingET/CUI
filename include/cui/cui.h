@@ -3652,6 +3652,7 @@ typedef struct cui_flame_opts {
     float height;              /* default: fits the rows (up to 360) */
     float row_height;          /* default 20 */
     double min_range;          /* deepest zoom in seconds, default 1e-8 */
+    double clock_epoch;        /* nonzero: span time 0 is this Unix time and the ruler reads the local clock, as the trace viewer's */
 } cui_flame_opts;
 typedef struct cui_flame_result {
     bool selection_changed;    /* *selected changed (click or keys) */

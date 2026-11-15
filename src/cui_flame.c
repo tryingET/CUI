@@ -346,7 +346,7 @@ static void cui__paint_flame(cui_ctx *ui, cui_node *n, void *data) {
     cui_corners rc = { rad - 1, rad - 1, 0, 0 };
     cui_draw_rect(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, rc, CUI_C(ui, SURFACE_MUTED));
     cui_draw_rect(ui, (cui_rect){ r.x, r.y + CUI__FL_RULER, r.w, 1 }, CUI_CORNERS(0), CUI_C(ui, BORDER));
-    if (k > 0) cui__fl_ruler(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, px0, pw, p->t0, p->t1, p->origin, NAN, r.h - CUI__FL_RULER - 2);
+    if (k > 0) cui__fl_ruler(ui, (cui_rect){ r.x, r.y, r.w, CUI__FL_RULER }, px0, pw, p->t0, p->t1, p->origin, p->epoch, r.h - CUI__FL_RULER - 2);
     /* rows */
     cui_push_clip(ui, body);
     for (int i = 0; i < p->n; i++) cui__fl_bar(ui, p, &p->items[i], px0, k, body_y, body, false);
@@ -688,6 +688,7 @@ static cui__fl_paint *cui__flf_build_panel(cui__flf *f, int *node) {
     memset(p, 0, sizeof *p);
     p->st = f->st; p->sid = cui_is_disabled(ui) ? 0 : f->sid;
     p->t0 = f->v->start; p->t1 = f->v->end; p->origin = f->c.dmin;
+    p->epoch = o && o->clock_epoch != 0 ? o->clock_epoch : NAN;
     p->row_h = f->c.row_h; p->scroll = f->v->scroll; p->content_h = f->c.rows * f->c.row_h;
     p->empty = !f->has_data;
     cui__tween(ui, &f->st->focus, f->bi.focus_visible ? 1.0f : 0.0f, CUI__T_FOCUS);
