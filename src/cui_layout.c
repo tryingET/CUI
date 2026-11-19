@@ -1081,7 +1081,7 @@ void cui__paint_wheel_hit(cui_ctx *ui, cui_id id, cui_rect r) {
     cui_scroll_state *ss = cui_state(ui, id, sizeof *ss);
     ss->view_w = r.w; ss->view_h = r.h;
     ss->content_w = r.w + 1e6f; ss->content_h = r.h + 1e6f;
-    cui__add_hit(ui, id, cui__rect_intersect(r, cp), CUI_NF_SCROLL_X | CUI_NF_SCROLL_Y);
+    cui__add_hit(ui, id, cui__rect_intersect(cui__xform_rect(ui, r), cp), CUI_NF_SCROLL_X | CUI_NF_SCROLL_Y);
 }
 
 void cui_wheel_region(cui_ctx *ui, cui_id id, cui_rect rect) {
