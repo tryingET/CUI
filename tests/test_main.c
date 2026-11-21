@@ -998,6 +998,46 @@ static void build_wheel_canvas(cui_ctx *ui, void *user) {
     }
 }
 
+typedef struct frame_alloc_canvas_data {
+    const char *label;
+    int *saw_match;
+} frame_alloc_canvas_data;
+
+static void paint_frame_alloc_canvas(cui_ctx *ui, cui_rect r, void *user) {
+    const frame_alloc_canvas_data *d = user;
+    (void)r;
+    if (d->label && strcmp(d->label, "ephemeral-42") == 0) (*d->saw_match)++;
+    cui_draw_text(ui, CUI_FONT_MONO, 12.0f, (cui_vec2){ r.x, r.y }, (cui_color){ 255, 255, 255, 255 }, d->label, -1);
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+static void add_ephemeral_canvas(cui_ctx *ui, int *saw_match) {
+    char tmp[32];
+    snprintf(tmp, sizeof tmp, "ephemeral-%d", 42);
+    frame_alloc_canvas_data d = { .label = cui_frame_strdup(ui, tmp), .saw_match = saw_match };
+    cui_canvas(ui, "ephemeral_canvas", CUI_PX(120), CUI_PX(40), paint_frame_alloc_canvas, &d, sizeof d);
+}
+
+static void test_canvas_frame_alloc(void) {
+    printf("canvas: cui_frame_alloc and cui_frame_strdup survive deferred paint\n");
+    cui_ctx *ui = new_ctx();
+    CHECK(cui_frame_alloc(NULL, 16) == NULL);
+    CHECK(cui_frame_alloc(ui, 0) == NULL);
+    CHECK(cui_frame_strdup(ui, NULL) == NULL);
+
+    int saw_match = 0;
+    cui_begin_frame(ui, 1.0f / 60.0f);
+    unsigned char *buf = cui_frame_alloc(ui, 32);
+    CHECK(buf != NULL && buf[0] == 0 && buf[31] == 0);
+    add_ephemeral_canvas(ui, &saw_match);
+    cui_end_frame(ui);
+    CHECK(saw_match == 1);
+
+    cui_destroy(ui);
+}
+
 /** The wheel goes to a canvas's region and nowhere else; around it the page scrolls. */
 static void test_canvas_wheel(void) {
     printf("canvas: wheel region in a scrolling page\n");
@@ -9778,6 +9818,7 @@ int main(void) {
     test_textarea_ime_caret();
     test_nested_textarea_wheel();
     test_canvas_wheel();
+    test_canvas_frame_alloc();
     test_nested_textarea_mixed_wheel();
     test_canvas_rail_wheel();
     test_number_edit_commit();

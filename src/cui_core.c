@@ -105,6 +105,16 @@ char *cui__frame_strdup(cui_ctx *ui, const char *s, int len) {
     return d;
 }
 
+void *cui_frame_alloc(cui_ctx *ui, size_t size) {
+    if (!ui || size == 0) return NULL;
+    return cui__frame_alloc(ui, size);
+}
+
+char *cui_frame_strdup(cui_ctx *ui, const char *s) {
+    if (!ui || !s) return NULL;
+    return cui__frame_strdup(ui, s, -1);
+}
+
 char *cui__frame_vprintf(cui_ctx *ui, const char *fmt, va_list ap) {
     va_list ap2;
     va_copy(ap2, ap);

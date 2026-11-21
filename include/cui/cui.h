@@ -4994,12 +4994,21 @@ CUI_API void cui_push_clip(cui_ctx *ui, cui_rect r);
 CUI_API void cui_pop_clip(cui_ctx *ui);
 
 /* Canvas: a box of the given size that you paint yourself. The callback
- * runs after layout, with the final rectangle; inside a disabled scope
- * (cui_push_disabled) it sees cui_is_disabled return true. Returns
- * interaction info. */
+ * runs after layout (during cui_end_frame), with the final rectangle; inside
+ * a disabled scope (cui_push_disabled) it sees cui_is_disabled return true.
+ * `user` is shallow-copied into frame memory (`user_size` bytes); any pointer
+ * fields inside `user` must stay valid until cui_end_frame — use
+ * cui_frame_alloc / cui_frame_strdup for temporary strings or slices.
+ * Returns interaction info. */
 typedef void (*cui_paint_fn)(cui_ctx *ui, cui_rect rect, void *user);
 typedef struct cui_canvas_result { cui_rect rect; bool hovered, pressed, clicked; cui_vec2 mouse; } cui_canvas_result;
 CUI_API cui_canvas_result cui_canvas(cui_ctx *ui, const char *id, cui_size width, cui_size height, cui_paint_fn paint, const void *user, size_t user_size);
+
+/* Frame-scoped arena allocation: zero-initialized memory valid until the next
+ * cui_begin_frame. Useful for passing temporary strings or slices into a
+ * deferred cui_canvas paint callback without heap churn. */
+CUI_API void *cui_frame_alloc(cui_ctx *ui, size_t size);
+CUI_API char *cui_frame_strdup(cui_ctx *ui, const char *s);
 
 /* Marks the part of a canvas that takes the wheel, for a canvas that zooms,
  * pans or scrolls what it draws the way the built-in charts, graphs and
