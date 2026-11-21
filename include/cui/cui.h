@@ -1101,6 +1101,9 @@ CUI_API int cui_pattern_meter_ex(cui_ctx *ui, const char *id, const cui_meter_pa
 
 /* Images */
 CUI_API cui_texture cui_image_create(cui_ctx *ui, int w, int h, const void *rgba);
+/* Updates a rectangle of an existing RGBA8 texture in place (for live video,
+ * camera frames, or dynamic bitmaps). stride is in bytes; 0 means tightly packed (w * 4). */
+CUI_API void cui_image_update(cui_ctx *ui, cui_texture tex, int x, int y, int w, int h, const void *rgba, int stride);
 CUI_API cui_texture cui_image_load(cui_ctx *ui, const char *path, int *w, int *h);   /* UTF-8 path, PNG/JPEG via stb_image */
 CUI_API void cui_image_destroy(cui_ctx *ui, cui_texture tex);
 typedef struct cui_image_opts {

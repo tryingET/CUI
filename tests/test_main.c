@@ -998,6 +998,44 @@ static void build_wheel_canvas(cui_ctx *ui, void *user) {
     }
 }
 
+static void test_image_update(void) {
+    printf("image: cui_image_update updates RGBA8 pixels in place\n");
+    cui_sw_renderer *sw = cui_sw_create();
+    cui_ctx *ui = cui_create(&(cui_ctx_desc){ .renderer = cui_sw_iface(sw), .theme = CUI_THEME_DARK });
+    cui_set_viewport(ui, 32, 32, 1.0f);
+
+    uint8_t red[4 * 4 * 4];
+    uint8_t green[4 * 4 * 4];
+    for (int i = 0; i < 16; i++) {
+        red[i * 4 + 0] = 220; red[i * 4 + 1] = 20; red[i * 4 + 2] = 20; red[i * 4 + 3] = 255;
+        green[i * 4 + 0] = 20; green[i * 4 + 1] = 220; green[i * 4 + 2] = 40; green[i * 4 + 3] = 255;
+    }
+    cui_texture tex = cui_image_create(ui, 4, 4, red);
+    CHECK(tex != 0);
+
+    /* Guard no-ops */
+    cui_image_update(NULL, tex, 0, 0, 4, 4, green, 0);
+    cui_image_update(ui, 0, 0, 0, 4, 4, green, 0);
+    cui_image_update(ui, tex, 0, 0, 0, 4, green, 0);
+
+    /* Full in-place update with stride == 0 (defaults to w * 4) */
+    cui_image_update(ui, tex, 0, 0, 4, 4, green, 0);
+    cui_begin_frame(ui, 1.0f / 60.0f);
+    cui_image(ui, tex, .width = CUI_PX(16), .height = CUI_PX(16));
+    cui_end_frame(ui);
+
+    uint8_t fb[32 * 32 * 4];
+    memset(fb, 0, sizeof fb);
+    cui_sw_render(sw, cui_get_draw_data(ui), fb, 32, 32, 32 * 4, CUI_SW_RGBA);
+    /* Center of the 16x16 image at (8, 8) must be green, not red */
+    uint8_t *px = fb + (8 * 32 + 8) * 4;
+    CHECK(px[1] > 180 && px[0] < 60);
+
+    cui_image_destroy(ui, tex);
+    cui_destroy(ui);
+    cui_sw_destroy(sw);
+}
+
 /** The wheel goes to a canvas's region and nowhere else; around it the page scrolls. */
 static void test_canvas_wheel(void) {
     printf("canvas: wheel region in a scrolling page\n");
@@ -9778,6 +9816,7 @@ int main(void) {
     test_textarea_ime_caret();
     test_nested_textarea_wheel();
     test_canvas_wheel();
+    test_image_update();
     test_nested_textarea_mixed_wheel();
     test_canvas_rail_wheel();
     test_number_edit_commit();

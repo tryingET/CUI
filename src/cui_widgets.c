@@ -1106,6 +1106,12 @@ cui_texture cui_image_create(cui_ctx *ui, int w, int h, const void *rgba) {
     return ui->renderer.texture_create(ui->renderer.user, w, h, CUI_TEXTURE_RGBA8, rgba);
 }
 
+void cui_image_update(cui_ctx *ui, cui_texture tex, int x, int y, int w, int h, const void *rgba, int stride) {
+    if (!ui || !tex || !rgba || w <= 0 || h <= 0 || !ui->renderer.texture_update) return;
+    if (stride <= 0) stride = w * 4;
+    ui->renderer.texture_update(ui->renderer.user, tex, x, y, w, h, rgba, stride);
+}
+
 void cui_image_destroy(cui_ctx *ui, cui_texture tex) {
     if (tex && ui->renderer.texture_destroy) ui->renderer.texture_destroy(ui->renderer.user, tex);
 }
