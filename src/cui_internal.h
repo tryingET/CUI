@@ -80,19 +80,6 @@ void cui__free(cui_ctx *ui, void *p);
 void *cui__frame_alloc(cui_ctx *ui, size_t size);       /* freed at frame start */
 char *cui__frame_strdup(cui_ctx *ui, const char *s, int len);
 char *cui__frame_printf(cui_ctx *ui, const char *fmt, ...) CUI_PRINTF(2, 3);
-/* Time rulers (flame graph, trace view, waterfall), shared by the three views
- * in cui_flame.c and checked by the tests: cui__fl_step gives the tick step for
- * at least `raw` seconds, cui__fl_tick the label of a tick `step` apart
- * ("4 min 50 s"), cui__fl_dur a duration in its unit ("12.4 ms", "1.50 min"),
- * cui__fl_ruler_step the step a ruler `pw` points wide uses for t0..t1, wide
- * enough for every label in view, and cui__fl_tick_x where tick q is drawn. */
-double cui__fl_step(double raw);
-double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double origin);
-const char *cui__fl_clock_tick(cui_ctx *ui, double t, double step);   /* a tick at Unix time t, local clock */
-double cui__fl_clock_origin(double t0, double epoch);                 /* the local midnight before t0, in view time */
-float cui__fl_tick_x(float px0, double k, double t0, double origin, double q, double step);
-const char *cui__fl_tick(cui_ctx *ui, double t, double step);
-const char *cui__fl_dur(cui_ctx *ui, double s);
 char *cui__frame_vprintf(cui_ctx *ui, const char *fmt, va_list ap);
 
 #define CUI__GROW(ui, arr, count, cap, need) do {                                 \
@@ -769,6 +756,8 @@ void cui__draw_hdash(cui_ctx *ui, float x0, float x1, float y, float dash, float
  * enough for every label in view, and cui__fl_tick_x where tick q is drawn. */
 double cui__fl_step(double raw);
 double cui__fl_ruler_step(cui_ctx *ui, float pw, double t0, double t1, double origin);
+const char *cui__fl_clock_tick(cui_ctx *ui, double t, double step);   /* a tick at Unix time t, local clock */
+double cui__fl_clock_origin(double t0, double epoch);                 /* the local midnight before t0, in view time */
 float cui__fl_tick_x(float px0, double k, double t0, double origin, double q, double step);
 const char *cui__fl_tick(cui_ctx *ui, double t, double step);
 const char *cui__fl_dur(cui_ctx *ui, double s);
