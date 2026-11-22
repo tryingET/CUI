@@ -1029,8 +1029,18 @@ static void test_canvas_frame_alloc(void) {
 
     int saw_match = 0;
     cui_begin_frame(ui, 1.0f / 60.0f);
+    CHECK(cui_frame_alloc(ui, SIZE_MAX - 15) == NULL);
+    CHECK(cui_frame_alloc(ui, 32) != NULL);
+    cui_end_frame(ui);
+    cui_begin_frame(ui, 1.0f / 60.0f);  /* last frame's demand gave the arena its main block */
     unsigned char *buf = cui_frame_alloc(ui, 32);
     CHECK(buf != NULL && buf[0] == 0 && buf[31] == 0);
+    /* Reject unrepresentable requests without consuming or overwriting frame memory. */
+    if (buf) buf[0] = 42;
+    CHECK(cui_frame_alloc(ui, SIZE_MAX) == NULL);
+    CHECK(cui_frame_alloc(ui, SIZE_MAX - 15) == NULL);
+    unsigned char *next = cui_frame_alloc(ui, 16);
+    CHECK(buf && next == buf + 32 && buf[0] == 42 && next[0] == 0);
     add_ephemeral_canvas(ui, &saw_match);
     cui_end_frame(ui);
     CHECK(saw_match == 1);

@@ -26,18 +26,22 @@ void cui__free(cui_ctx *ui, void *p) { if (p) ui->alloc.free(p, ui->alloc.user);
 /* Frame arena: a main block that grows between frames, plus overflow blocks
  * for the current frame so pointers handed out stay valid. */
 void *cui__frame_alloc(cui_ctx *ui, size_t size) {
+    if (size > SIZE_MAX - 15) return NULL;
     size = (size + 15) & ~(size_t)15;
-    if (ui->arena_used + size <= ui->arena_cap) {
+    if (size > SIZE_MAX - ui->arena_used) return NULL;
+    size_t demand = ui->arena_used + size;
+    if (demand <= ui->arena_cap) {
         void *p = ui->arena + ui->arena_used;
-        ui->arena_used += size;
+        ui->arena_used = demand;
         memset(p, 0, size);
         return p;
     }
     /* overflow block, freed at next frame; arena grows for next frame */
+    if (size > SIZE_MAX - 32) return NULL;
     struct cui_arena_block *b = cui__alloc(ui, 32 + size);
     b->next = ui->arena_overflow;
     ui->arena_overflow = b;
-    ui->arena_used += size;  /* remember the demand so the arena grows */
+    ui->arena_used = demand;  /* remember the demand so the arena grows */
     void *p = (void *)(((uintptr_t)b + sizeof(*b) + 15) & ~(uintptr_t)15);
     memset(p, 0, size);
     return p;
@@ -67,7 +71,7 @@ static void cui__trim_buffers(cui_ctx *ui) {
     ui->dl.idx = cui__trim(ui, ui->dl.idx, &ui->dl.idx_cap, ui->peak_idx, sizeof *ui->dl.idx);
     ui->dl.cmd = cui__trim(ui, ui->dl.cmd, &ui->dl.cmd_cap, ui->peak_cmd, sizeof *ui->dl.cmd);
     ui->nodes = cui__trim(ui, ui->nodes, &ui->node_cap, ui->peak_nodes, sizeof *ui->nodes);
-    if (ui->arena_cap > 65536 && ui->arena_cap > ui->peak_arena * 4 && !ui->arena_overflow) {
+    if (ui->arena_cap > 65536 && ui->peak_arena <= (ui->arena_cap - 1) / 4 && !ui->arena_overflow) {
         size_t cap = 1 << 16;
         while (cap < ui->peak_arena * 2) cap *= 2;
         cui__free(ui, ui->arena);
@@ -88,7 +92,8 @@ static void cui__frame_arena_reset(cui_ctx *ui) {
     }
     if (demand > ui->arena_cap) {
         size_t cap = ui->arena_cap ? ui->arena_cap : 1 << 16;
-        while (cap < demand) cap *= 2;
+        while (cap < demand && cap <= SIZE_MAX / 2) cap *= 2;
+        if (cap < demand) cap = demand;  /* the next power of two would not fit */
         cui__free(ui, ui->arena);
         ui->arena = cui__alloc(ui, cap);
         ui->arena_cap = cap;
@@ -98,10 +103,11 @@ static void cui__frame_arena_reset(cui_ctx *ui) {
 
 char *cui__frame_strdup(cui_ctx *ui, const char *s, int len) {
     if (!s) return NULL;
-    if (len < 0) len = (int)strlen(s);
-    char *d = cui__frame_alloc(ui, (size_t)len + 1);
-    memcpy(d, s, (size_t)len);
-    d[len] = 0;
+    size_t n = len < 0 ? strlen(s) : (size_t)len;
+    char *d = cui__frame_alloc(ui, n + 1);
+    if (!d) return NULL;
+    memcpy(d, s, n);
+    d[n] = 0;
     return d;
 }
 

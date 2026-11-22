@@ -41,7 +41,7 @@ cui_canvas_result c = cui_canvas(ui, "meter", CUI_FILL, CUI_PX(8), paint_meter, 
 if (c.pressed) level = c.mouse.x / c.rect.w;
 ```
 
-The user data is copied (pass `sizeof`), because painting happens at the end of the frame. `cui_canvas_result` has `rect`, `hovered`, `pressed`, `clicked` and `mouse` (relative to the canvas). The canvas clips to its rectangle.
+The user data is shallow-copied (pass `sizeof`), because painting happens at the end of the frame. If it contains pointers to temporary data, use `cui_frame_strdup` or `cui_frame_alloc` to keep the pointed-to data alive through paint. A zero or unrepresentable allocation size returns `NULL` without consuming frame memory. `cui_canvas_result` has `rect`, `hovered`, `pressed`, `clicked` and `mouse` (relative to the canvas). The canvas clips to its rectangle.
 
 ### Wheel input
 

@@ -5006,7 +5006,8 @@ CUI_API cui_canvas_result cui_canvas(cui_ctx *ui, const char *id, cui_size width
 
 /* Frame-scoped arena allocation: zero-initialized memory valid until the next
  * cui_begin_frame. Useful for passing temporary strings or slices into a
- * deferred cui_canvas paint callback without heap churn. */
+ * deferred cui_canvas paint callback without heap churn. Returns NULL for a
+ * null context, zero size, or a size the frame arena cannot represent. */
 CUI_API void *cui_frame_alloc(cui_ctx *ui, size_t size);
 CUI_API char *cui_frame_strdup(cui_ctx *ui, const char *s);
 
