@@ -538,6 +538,10 @@ struct cui_ctx {
     cui_id *prev_focus_order; int prev_focus_count, prev_focus_cap;
     cui_id *focus_layers; int focus_layers_cap;          /* layer of each focus entry */
     cui_id *prev_focus_layers; int prev_focus_layers_cap;
+    cui_id *focus_scopes; int focus_scopes_cap;          /* optional focus scope of each entry */
+    cui_id *prev_focus_scopes; int prev_focus_scopes_cap;
+    cui_id current_focus_scope, focus_scope_stack[16]; int focus_scope_depth;
+    cui_id active_focus_scope, prev_active_focus_scope;
     cui_id modal_layer, prev_modal_layer;               /* topmost open modal */
     int modal_z;
     bool edit_prev;                                     /* a text field had focus last frame */

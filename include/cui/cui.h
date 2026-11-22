@@ -512,6 +512,11 @@ CUI_API bool cui_last_hovered(cui_ctx *ui);
 CUI_API bool cui_is_disabled(cui_ctx *ui);
 CUI_API void cui_push_disabled(cui_ctx *ui, bool disabled);
 CUI_API void cui_pop_disabled(cui_ctx *ui);
+/* Restrict Tab / Shift+Tab navigation to widgets built inside the active scope
+ * (for example, the focused pane in a multi-pane workspace). Non-active scopes
+ * remain clickable and undimmed; an open modal still takes precedence. */
+CUI_API void cui_push_focus_scope(cui_ctx *ui, cui_id id, bool active);
+CUI_API void cui_pop_focus_scope(cui_ctx *ui);
 
 /* ------------------------------------------------------------------------ */
 /* Text                                                                     */
@@ -5093,6 +5098,7 @@ CUI_API const cui_draw_data *cui_get_draw_data(cui_ctx *ui);
 #define cui_split(ui, id, ratio, ...) CUI__SCOPE(cui_split_begin((ui), (id), (ratio), CUI__OPTS(cui_split_opts, __VA_ARGS__)), cui_split_end(ui))
 #define cui_id_scope(ui, str)   CUI__SCOPE(cui_push_id((ui), (str)), cui_pop_id(ui))
 #define cui_disabled_scope(ui, d) CUI__SCOPE(cui_push_disabled((ui), (d)), cui_pop_disabled(ui))
+#define cui_focus_scope(ui, id, active) CUI__SCOPE(cui_push_focus_scope((ui), (id), (active)), cui_pop_focus_scope(ui))
 
 #define cui_text(ui, text, ...)             cui_text_ex((ui), (text), CUI__OPTS(cui_text_opts, __VA_ARGS__))
 #define cui_button(ui, label, ...)          cui_button_ex((ui), (label), CUI__OPTS(cui_button_opts, __VA_ARGS__))

@@ -998,6 +998,58 @@ static void build_wheel_canvas(cui_ctx *ui, void *user) {
     }
 }
 
+typedef struct focus_scope_state {
+    int active_pane;
+    int hit; /* 1=A1, 2=A2, 3=B1, 4=B2 */
+} focus_scope_state;
+
+static void build_focus_scope_scene(cui_ctx *ui, void *u) {
+    focus_scope_state *s = u;
+    cui_id s0 = cui_make_id(ui, "pane0");
+    cui_id s1 = cui_make_id(ui, "pane1");
+    cui_focus_scope(ui, s0, s->active_pane == 0) {
+        if (cui_button(ui, "A1")) s->hit = 1;
+        if (cui_button(ui, "A2")) s->hit = 2;
+    }
+    cui_focus_scope(ui, s1, s->active_pane == 1) {
+        if (cui_button(ui, "B1")) s->hit = 3;
+        if (cui_button(ui, "B2")) s->hit = 4;
+    }
+}
+
+static void test_focus_scope(void) {
+    printf("focus: cui_push_focus_scope restricts Tab cycling to the active pane\n");
+    cui_ctx *ui = new_ctx();
+    focus_scope_state s = { .active_pane = 0 };
+    run(ui, build_focus_scope_scene, &s, 2);
+
+    /* Tab cycles strictly A1 -> A2 -> A1 while pane 0 is active */
+    const int expect0[3] = { 1, 2, 1 };
+    for (int i = 0; i < 3; i++) {
+        cui_input_key(ui, CUI_KEY_TAB, true, 0);
+        run(ui, build_focus_scope_scene, &s, 1);
+        s.hit = 0;
+        cui_input_key(ui, CUI_KEY_ENTER, true, 0);
+        run(ui, build_focus_scope_scene, &s, 1);
+        CHECK(s.hit == expect0[i]);
+    }
+
+    /* Switching active scope to pane 1 makes Tab cycle strictly B1 -> B2 -> B1 */
+    s.active_pane = 1;
+    run(ui, build_focus_scope_scene, &s, 1);
+    const int expect1[3] = { 3, 4, 3 };
+    for (int i = 0; i < 3; i++) {
+        cui_input_key(ui, CUI_KEY_TAB, true, 0);
+        run(ui, build_focus_scope_scene, &s, 1);
+        s.hit = 0;
+        cui_input_key(ui, CUI_KEY_ENTER, true, 0);
+        run(ui, build_focus_scope_scene, &s, 1);
+        CHECK(s.hit == expect1[i]);
+    }
+
+    cui_destroy(ui);
+}
+
 /** The wheel goes to a canvas's region and nowhere else; around it the page scrolls. */
 static void test_canvas_wheel(void) {
     printf("canvas: wheel region in a scrolling page\n");
@@ -9778,6 +9830,7 @@ int main(void) {
     test_textarea_ime_caret();
     test_nested_textarea_wheel();
     test_canvas_wheel();
+    test_focus_scope();
     test_nested_textarea_mixed_wheel();
     test_canvas_rail_wheel();
     test_number_edit_commit();
