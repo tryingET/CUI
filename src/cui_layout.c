@@ -1090,10 +1090,11 @@ void cui__paint_wheel_hit(cui_ctx *ui, cui_id id, cui_rect r) {
     *wx = (cui_xform){ .scale = x.scale, .ox = x.ox / s, .oy = x.oy / s };
 }
 
-cui_vec2 cui__wheel_point(cui_ctx *ui, cui_id id, float x, float y) {
+cui_vec2 cui__wheel_point(cui_ctx *ui, cui_id id) {
+    cui_vec2 p = ui->building.screen_pointer ? *ui->building.screen_pointer : cui_mouse_pos(ui);
     const cui_xform *wx = cui_state(ui, id ^ CUI__WHEEL_XFORM, sizeof *wx);
-    if (!(wx->scale > 0)) return (cui_vec2){ x, y };   /* not painted yet: no transform known */
-    return (cui_vec2){ (x - wx->ox) / wx->scale, (y - wx->oy) / wx->scale };
+    if (!(wx->scale > 0)) return p;   /* not painted yet: no transform known */
+    return (cui_vec2){ (p.x - wx->ox) / wx->scale, (p.y - wx->oy) / wx->scale };
 }
 
 void cui_wheel_region(cui_ctx *ui, cui_id id, cui_rect rect) {

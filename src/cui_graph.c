@@ -631,7 +631,7 @@ cui_graph_result cui_graph_view_ex(cui_ctx *ui, const char *id_str, const cui_gr
     if (has_rect) {
         if (ui->scroll_target == wid && (ui->scroll_dy != 0 || ui->scroll_dx != 0)) {
             if (ui->scroll_dx != 0 || (ui->mods & CUI_MOD_SHIFT)) { s->px += (ui->scroll_dx != 0 ? ui->scroll_dx : ui->scroll_dy) * 40; }
-            else { cui_vec2 p = cui__wheel_point(ui, wid, ui->mx, ui->my); cui__gv_zoom_at(s, s->zoom * powf(1.12f, ui->scroll_dy), p.x - R.x, p.y - R.y); }
+            else { cui_vec2 p = cui__wheel_point(ui, wid); cui__gv_zoom_at(s, s->zoom * powf(1.12f, ui->scroll_dy), p.x - R.x, p.y - R.y); }
             ui->scroll_dx = ui->scroll_dy = 0;
         }
         if (bi.hovered && ui->mpressed[0] && s->mode == 0) {

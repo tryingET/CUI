@@ -828,6 +828,7 @@ void cui_begin_frame(cui_ctx *ui, float dt) {
     if (ui->settle_frames > 0) ui->settle_frames--;
 
     cui__trim_buffers(ui);   /* before anything of this frame is in them */
+    ui->building.screen_pointer = NULL;   /* saved positions belong to the previous frame */
     cui__frame_arena_reset(ui);
 
     /* swap hit lists and focus order */

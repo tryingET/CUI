@@ -384,9 +384,8 @@ cui_rect cui__xform_rect(cui_ctx *ui, cui_rect r);
 void cui__paint_add_hit(cui_ctx *ui, cui_id id, cui_rect r, uint32_t flags);
 /* From a paint callback: the wheel over r (inside the current clip) goes to id, ahead of any scroll area under it. */
 void cui__paint_wheel_hit(cui_ctx *ui, cui_id id, cui_rect r);
-/* A point where wheel area `id` was drawn, mapped back into its layout space with the transform
- * it was last painted with (a carousel slide, a sliding panel): wheel anchors use layout rects. */
-cui_vec2 cui__wheel_point(cui_ctx *ui, cui_id id, float x, float y);
+/* The screen pointer in the layout space of wheel area `id`, using its last paint transform. */
+cui_vec2 cui__wheel_point(cui_ctx *ui, cui_id id);
 
 /* ---- per id state ---- */
 typedef struct cui_state_entry {
@@ -648,6 +647,7 @@ struct cui_ctx {
      * noted, so a new begin/end component adds its pointer here and nowhere else. */
     struct {
         struct cui_table_build *table; int table_depth;   /* tables nest: depth counts them */
+        const cui_vec2 *screen_pointer; /* outermost saved pointer while node content remaps mouse input */
         struct cui_split_build *split;
         struct cui_reorder_build *reorder;
         struct cui_swipe_build *swipe;

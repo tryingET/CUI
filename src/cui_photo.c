@@ -72,7 +72,7 @@ bool cui_image_viewer_ex(cui_ctx *ui, const char *id_str, cui_texture tex, int i
 #define CUI__IV_ZOOM(nz, ax, ay) do { \
         float px_ = cx + ((ax) - mcx) / z, py_ = cy + ((ay) - mcy) / z; \
         z = cui__clampf((nz), zmin, zmax); cx = px_ - ((ax) - mcx) / z; cy = py_ - ((ay) - mcy) / z; fitted = false; } while (0)
-    const cui_vec2 at = cui__wheel_point(ui, wid, ui->mx, ui->my);   /* the pointer in layout space */
+    const cui_vec2 at = cui__wheel_point(ui, wid);   /* the pointer in layout space */
     if (ui->scroll_target == wid && ui->scroll_dy != 0 && pr.w > 0) {
         CUI__IV_ZOOM(z * powf(1.2f, ui->scroll_dy), at.x, at.y);
         ui->scroll_dy = 0;
