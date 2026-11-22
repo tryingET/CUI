@@ -998,39 +998,49 @@ static void build_wheel_canvas(cui_ctx *ui, void *user) {
     }
 }
 
+/* Mimic a renderer whose unpack row length is in whole pixels (OpenGL), while
+ * using the software rasterizer so this test needs no window or GL context. */
+static void image_update_pixel_stride(void *sw, cui_texture tex, int x, int y, int w, int h, const void *data, int stride) {
+    cui_sw_iface(sw).texture_update(sw, tex, x, y, w, h, data, (stride / 4) * 4);
+}
+
 static void test_image_update(void) {
-    printf("image: cui_image_update updates RGBA8 pixels in place\n");
+    printf("image: padded RGBA8 subrect updates and idle redraw\n");
     cui_sw_renderer *sw = cui_sw_create();
-    cui_ctx *ui = cui_create(&(cui_ctx_desc){ .renderer = cui_sw_iface(sw), .theme = CUI_THEME_DARK });
-    cui_set_viewport(ui, 32, 32, 1.0f);
-
-    uint8_t red[4 * 4 * 4];
-    uint8_t green[4 * 4 * 4];
-    for (int i = 0; i < 16; i++) {
-        red[i * 4 + 0] = 220; red[i * 4 + 1] = 20; red[i * 4 + 2] = 20; red[i * 4 + 3] = 255;
-        green[i * 4 + 0] = 20; green[i * 4 + 1] = 220; green[i * 4 + 2] = 40; green[i * 4 + 3] = 255;
-    }
-    cui_texture tex = cui_image_create(ui, 4, 4, red);
+    cui_renderer_iface renderer = cui_sw_iface(sw);
+    renderer.texture_update = image_update_pixel_stride;
+    cui_sw_set_incremental(sw, true);
+    cui_ctx *ui = cui_create(&(cui_ctx_desc){ .renderer = renderer });
+    cui_set_viewport(ui, 4, 4, 1);
+    uint8_t white[4 * 4 * 4], fb[sizeof white] = { 0 };
+    memset(white, 255, sizeof white);
+    cui_texture tex = cui_image_create(ui, 4, 4, white);
     CHECK(tex != 0);
+    for (int i = 0; i < 3; i++) {   /* let layout settle and leave the original image on screen */
+        cui_begin_frame(ui, 1.0f / 60.0f);
+        cui_image(ui, tex, .width = CUI_PX(4), .height = CUI_PX(4));
+        cui_end_frame(ui);
+        cui_sw_render(sw, cui_get_draw_data(ui), fb, 4, 4, 16, CUI_SW_RGBA);
+    }
+    CHECK(memcmp(fb, white, sizeof fb) == 0);
+    cui_image_update(NULL, tex, 0, 0, 4, 4, white, 0);
+    cui_image_update(ui, 0, 0, 0, 4, 4, white, 0);
+    cui_image_update(ui, tex, 0, 0, 0, 4, white, 0);
+    cui_image_update(ui, tex, 0, 0, 4, 4, white, 15);    /* not enough bytes for one row */
+    CHECK(!cui_needs_redraw(ui));
 
-    /* Guard no-ops */
-    cui_image_update(NULL, tex, 0, 0, 4, 4, green, 0);
-    cui_image_update(ui, 0, 0, 0, 4, 4, green, 0);
-    cui_image_update(ui, tex, 0, 0, 0, 4, green, 0);
-
-    /* Full in-place update with stride == 0 (defaults to w * 4) */
-    cui_image_update(ui, tex, 0, 0, 4, 4, green, 0);
-    cui_begin_frame(ui, 1.0f / 60.0f);
-    cui_image(ui, tex, .width = CUI_PX(16), .height = CUI_PX(16));
-    cui_end_frame(ui);
-
-    uint8_t fb[32 * 32 * 4];
-    memset(fb, 0, sizeof fb);
-    cui_sw_render(sw, cui_get_draw_data(ui), fb, 32, 32, 32 * 4, CUI_SW_RGBA);
-    /* Center of the 16x16 image at (8, 8) must be green, not red */
-    uint8_t *px = fb + (8 * 32 + 8) * 4;
-    CHECK(px[1] > 180 && px[0] < 60);
-
+    /* Red and green above blue and yellow; padding is not a pixel. */
+    const uint8_t rows[2][9] = { { 255,0,0,255, 0,255,0,255, 17 }, { 0,0,255,255, 255,255,0,255, 31 } };
+    cui_image_update(ui, tex, 1, 1, 2, 2, rows, sizeof rows[0]);
+    CHECK(cui_needs_redraw(ui));
+    cui_sw_render(sw, cui_get_draw_data(ui), fb, 4, 4, 16, CUI_SW_RGBA);
+    for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
+        const uint8_t *want = (y == 1 || y == 2) && (x == 1 || x == 2) ? &rows[y-1][4*(x-1)] : white;
+        CHECK(memcmp(fb + 4*(y*4 + x), want, 4) == 0);
+    }
+    cui_image_update(ui, tex, 0, 0, 4, 4, white, 0);    /* packed full update */
+    cui_sw_render(sw, cui_get_draw_data(ui), fb, 4, 4, 16, CUI_SW_RGBA);
+    CHECK(memcmp(fb, white, sizeof fb) == 0);
     cui_image_destroy(ui, tex);
     cui_destroy(ui);
     cui_sw_destroy(sw);

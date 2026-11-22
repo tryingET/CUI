@@ -1,6 +1,7 @@
 /* Core components: text, buttons, badges, avatars, cards, feedback,
  * scroll areas, split views and custom canvases. */
 #include "cui_internal.h"
+#include <limits.h>
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -1107,9 +1108,19 @@ cui_texture cui_image_create(cui_ctx *ui, int w, int h, const void *rgba) {
 }
 
 void cui_image_update(cui_ctx *ui, cui_texture tex, int x, int y, int w, int h, const void *rgba, int stride) {
-    if (!ui || !tex || !rgba || w <= 0 || h <= 0 || !ui->renderer.texture_update) return;
-    if (stride <= 0) stride = w * 4;
-    ui->renderer.texture_update(ui->renderer.user, tex, x, y, w, h, rgba, stride);
+    if (!ui || !tex || !rgba || w <= 0 || w > INT_MAX / 4 || h <= 0 || !ui->renderer.texture_update) return;
+    int packed = w * 4;
+    if (stride <= 0) stride = packed;
+    if (stride < packed) return;
+    if (stride % 4 == 0) {
+        ui->renderer.texture_update(ui->renderer.user, tex, x, y, w, h, rgba, stride);
+    } else {
+        /* GL unpack row length counts pixels, so start each byte-padded row explicitly. */
+        const uint8_t *src = rgba;
+        for (int row = 0; row < h; row++)
+            ui->renderer.texture_update(ui->renderer.user, tex, x, y + row, w, 1, src + (size_t)row * (size_t)stride, packed);
+    }
+    cui_request_redraw(ui);
 }
 
 void cui_image_destroy(cui_ctx *ui, cui_texture tex) {
