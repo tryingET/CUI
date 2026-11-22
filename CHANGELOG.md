@@ -6,6 +6,8 @@ What changed in CUI, newest first. Every component mentioned here runs live in t
 
 ### Added
 
+- `CUI_PLATFORM=wayland` requires native Wayland through SDL2 without falling back to X11. Linux `auto` is unchanged.
+
 - `cui_image_update(ui, tex, x, y, w, h, rgba, stride)` updates a region of an existing RGBA8 image texture in place through the active renderer's `texture_update` hook (`stride == 0` defaults to `w * 4`), requesting a redraw without reallocating the texture for live video, camera previews, and dynamic bitmaps.
 - `cui_frame_alloc(ui, size)` and `cui_frame_strdup(ui, s)` expose CUI's frame-scoped arena so custom `cui_canvas` paint callbacks can safely capture temporary strings and slices that outlive the caller's stack frame until `cui_end_frame`.
 - `cui_push_focus_scope(ui, id, active)` / `cui_pop_focus_scope(ui)` (and `cui_focus_scope(ui, id, active)`): restrict `Tab` / `Shift+Tab` keyboard focus cycling to widgets built inside the active scope (such as the focused pane of a multi-pane workspace), while leaving other panes and their nested scopes clickable and undimmed. With no active pane, Tab visits unscoped controls. An open modal still takes precedence.
