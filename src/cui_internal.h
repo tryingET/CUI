@@ -413,6 +413,10 @@ typedef struct cui_hit {
     int order;
 } cui_hit;
 
+/* An inactive scope stays inactive through nested pushes. Outside any scope, both fields are zero. */
+typedef struct { cui_id id; bool inactive; } cui__focus_scope;
+typedef struct { cui_id id, layer; cui__focus_scope scope; } cui__focus_entry;
+
 /* Hit-only flags for controls whose wheel range is separate from layout scroll.
  * They share cui_hit.flags with the CUI_NF_* node flags, so they sit above all of them. */
 enum { CUI_HIT_WHEEL_UP = 1 << 20, CUI_HIT_WHEEL_DOWN = 1 << 21 };
@@ -534,13 +538,9 @@ struct cui_ctx {
     bool focus_visible;             /* focus came from the keyboard */
     cui_id focus_next_request;
     int focus_move;                 /* +1/-1 tab navigation requested */
-    cui_id *focus_order; int focus_count, focus_cap;
-    cui_id *prev_focus_order; int prev_focus_count, prev_focus_cap;
-    cui_id *focus_layers; int focus_layers_cap;          /* layer of each focus entry */
-    cui_id *prev_focus_layers; int prev_focus_layers_cap;
-    cui_id *focus_scopes; int focus_scopes_cap;          /* optional focus scope of each entry */
-    cui_id *prev_focus_scopes; int prev_focus_scopes_cap;
-    cui_id current_focus_scope, focus_scope_stack[16]; int focus_scope_depth;
+    cui__focus_entry *focus_order; int focus_count, focus_cap;
+    cui__focus_entry *prev_focus_order; int prev_focus_count, prev_focus_cap;
+    cui__focus_scope *focus_scope_stack; int focus_scope_depth, focus_scope_cap;
     cui_id active_focus_scope, prev_active_focus_scope;
     cui_id modal_layer, prev_modal_layer;               /* topmost open modal */
     int modal_z;

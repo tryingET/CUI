@@ -1050,6 +1050,60 @@ static void test_focus_scope(void) {
     cui_destroy(ui);
 }
 
+typedef struct {
+    bool active, nested;
+    int depth, hit;
+} nested_scope_case;
+
+static void build_nested_focus(cui_ctx *ui, void *u) {
+    nested_scope_case *s = u;
+    if (cui_button(ui, "Outside")) s->hit = 1;
+    cui_focus_scope(ui, 1, s->active) { if (cui_button(ui, "Pane")) s->hit = 2; }
+    if (s->nested) {
+        cui_focus_scope(ui, 2, false) {
+            /* Even a child with the active pane's id must stay out of Tab order here. */
+            cui_focus_scope(ui, 1, true) { if (cui_button(ui, "Child")) s->hit = 3; }
+        }
+    }
+    if (s->depth) {
+        for (int i = 1; i <= s->depth; i++) cui_push_focus_scope(ui, (cui_id)i, true);
+        cui_focus_scope(ui, 99, false) { if (cui_button(ui, "Skipped")) s->hit = 4; }
+        if (cui_button(ui, "Restored")) s->hit = 5;
+        for (int i = 0; i < s->depth; i++) cui_pop_focus_scope(ui);
+    }
+}
+
+static int tab_and_activate(cui_ctx *ui, nested_scope_case *s, int mods) {
+    s->hit = 0;
+    key(ui, build_nested_focus, s, CUI_KEY_TAB, mods);
+    key(ui, build_nested_focus, s, CUI_KEY_ENTER, 0);
+    return s->hit;
+}
+
+static void test_nested_focus(void) {
+    printf("focus: inactive panes, nested activation and balanced deep scopes\n");
+    cui_ctx *ui = new_ctx();
+    nested_scope_case s = { 0 };
+    run(ui, build_nested_focus, &s, 2);
+    CHECK(tab_and_activate(ui, &s, 0) == 1);
+    CHECK(tab_and_activate(ui, &s, CUI_MOD_SHIFT) == 1);   /* no pane is active */
+    cui_vec2 pt = center(rect_of(ui, cui_make_id(ui, "Pane")));
+    click_at(ui, build_nested_focus, &s, pt.x, pt.y);
+    CHECK(s.hit == 2);                                     /* inactive is not disabled */
+    s.nested = true;
+    run(ui, build_nested_focus, &s, 1);
+    CHECK(tab_and_activate(ui, &s, 0) == 1);               /* child cannot activate its inactive parent */
+    s.active = true;
+    run(ui, build_nested_focus, &s, 1);
+    CHECK(tab_and_activate(ui, &s, CUI_MOD_SHIFT) == 2);   /* same child id as the active top-level pane */
+    CHECK(tab_and_activate(ui, &s, 0) == 2);
+    for (s.depth = 16; s.depth <= 64; s.depth *= 4) {
+        run(ui, build_nested_focus, &s, 1);
+        CHECK(tab_and_activate(ui, &s, 0) == 5);           /* pop restores level 16 (or 64) */
+    }
+    cui_destroy(ui);
+}
+
 /** The wheel goes to a canvas's region and nowhere else; around it the page scrolls. */
 static void test_canvas_wheel(void) {
     printf("canvas: wheel region in a scrolling page\n");
@@ -3452,6 +3506,10 @@ static void build_trap(cui_ctx *ui, void *u) {
     cui_dialog(ui, "Trap", &t->open) { if (cui_button(ui, "Inside")) t->inside++; }
 }
 
+static void build_trap_in_inactive_scope(cui_ctx *ui, void *u) {
+    cui_focus_scope(ui, 1, false) { build_trap(ui, u); }
+}
+
 static void test_focus_trap(void) {
     printf("overlays: tab focus stays inside a modal\n");
     cui_ctx *ui = new_ctx();
@@ -3465,6 +3523,16 @@ static void test_focus_trap(void) {
     CHECK(t.under == 0);
     CHECK(t.inside == 3);
     CHECK(t.open);
+    cui_destroy(ui);
+
+    /* Modal layer filtering wins even when every pane is inactive. */
+    ui = new_ctx();
+    t = (trap_ctx){ true, 0, 0 };
+    run(ui, build_trap_in_inactive_scope, &t, 3);
+    key(ui, build_trap_in_inactive_scope, &t, CUI_KEY_TAB, 0);
+    key(ui, build_trap_in_inactive_scope, &t, CUI_KEY_TAB, 0);
+    key(ui, build_trap_in_inactive_scope, &t, CUI_KEY_ENTER, 0);
+    CHECK(t.inside == 1 && t.under == 0 && t.open);
     cui_destroy(ui);
 }
 
@@ -9831,6 +9899,7 @@ int main(void) {
     test_nested_textarea_wheel();
     test_canvas_wheel();
     test_focus_scope();
+    test_nested_focus();
     test_nested_textarea_mixed_wheel();
     test_canvas_rail_wheel();
     test_number_edit_commit();

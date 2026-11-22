@@ -513,8 +513,9 @@ CUI_API bool cui_is_disabled(cui_ctx *ui);
 CUI_API void cui_push_disabled(cui_ctx *ui, bool disabled);
 CUI_API void cui_pop_disabled(cui_ctx *ui);
 /* Restrict Tab / Shift+Tab navigation to widgets built inside the active scope
- * (for example, the focused pane in a multi-pane workspace). Non-active scopes
- * remain clickable and undimmed; an open modal still takes precedence. */
+ * (for example, the focused pane in a multi-pane workspace). An inactive scope
+ * and its descendants remain clickable but outside the Tab order. With no active
+ * scope, Tab visits unscoped controls. An open modal takes precedence. */
 CUI_API void cui_push_focus_scope(cui_ctx *ui, cui_id id, bool active);
 CUI_API void cui_pop_focus_scope(cui_ctx *ui);
 

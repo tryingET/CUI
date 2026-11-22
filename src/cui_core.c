@@ -255,10 +255,7 @@ void cui_destroy(cui_ctx *ui) {
     cui__free(ui, ui->prev_hits);
     cui__free(ui, ui->focus_order);
     cui__free(ui, ui->prev_focus_order);
-    cui__free(ui, ui->focus_layers);
-    cui__free(ui, ui->prev_focus_layers);
-    cui__free(ui, ui->focus_scopes);
-    cui__free(ui, ui->prev_focus_scopes);
+    cui__free(ui, ui->focus_scope_stack);
     cui__free(ui, ui->dl.vtx);
     cui__free(ui, ui->dl.idx);
     cui__free(ui, ui->dl.cmd);
@@ -706,11 +703,9 @@ cui_interact cui__interact(cui_ctx *ui, cui_id id, int flags) {
     }
     if (flags & CUI_IF_FOCUSABLE) {
         CUI__GROW(ui, ui->focus_order, ui->focus_count, ui->focus_cap, 1);
-        CUI__GROW(ui, ui->focus_layers, ui->focus_count, ui->focus_layers_cap, 1);
-        CUI__GROW(ui, ui->focus_scopes, ui->focus_count, ui->focus_scopes_cap, 1);
-        ui->focus_layers[ui->focus_count] = ui->current_layer;
-        ui->focus_scopes[ui->focus_count] = ui->current_focus_scope;
-        ui->focus_order[ui->focus_count++] = id;
+        cui__focus_scope scope = { 0 };
+        if (ui->focus_scope_depth) scope = ui->focus_scope_stack[ui->focus_scope_depth - 1];
+        ui->focus_order[ui->focus_count++] = (cui__focus_entry){ id, ui->current_layer, scope };
         if (ui->focus_next_request == id) { ui->focus = id; ui->focus_next_request = 0; }
     }
     bool hovered = ui->hot == id && (ui->active == 0 || ui->active == id);
@@ -838,19 +833,14 @@ void cui_begin_frame(cui_ctx *ui, float dt) {
     { cui_hit *t = ui->prev_hits; ui->prev_hits = ui->hits; ui->hits = t;
       int c = ui->prev_hit_cap; ui->prev_hit_cap = ui->hit_cap; ui->hit_cap = c;
       ui->prev_hit_count = ui->hit_count; ui->hit_count = 0; }
-    { cui_id *t = ui->prev_focus_order; ui->prev_focus_order = ui->focus_order; ui->focus_order = t;
+    { cui__focus_entry *t = ui->prev_focus_order; ui->prev_focus_order = ui->focus_order; ui->focus_order = t;
       int c = ui->prev_focus_cap; ui->prev_focus_cap = ui->focus_cap; ui->focus_cap = c;
-      cui_id *tl = ui->prev_focus_layers; ui->prev_focus_layers = ui->focus_layers; ui->focus_layers = tl;
-      int cl = ui->prev_focus_layers_cap; ui->prev_focus_layers_cap = ui->focus_layers_cap; ui->focus_layers_cap = cl;
-      cui_id *ts = ui->prev_focus_scopes; ui->prev_focus_scopes = ui->focus_scopes; ui->focus_scopes = ts;
-      int cs = ui->prev_focus_scopes_cap; ui->prev_focus_scopes_cap = ui->focus_scopes_cap; ui->focus_scopes_cap = cs;
       ui->prev_focus_count = ui->focus_count; ui->focus_count = 0; }
     ui->prev_modal_layer = ui->modal_layer;
     ui->modal_layer = 0;
     ui->modal_z = 0;
     ui->prev_active_focus_scope = ui->active_focus_scope;
     ui->active_focus_scope = 0;
-    ui->current_focus_scope = 0;
     ui->focus_scope_depth = 0;
 
     cui__compute_hot(ui);
@@ -864,13 +854,12 @@ void cui_begin_frame(cui_ctx *ui, float dt) {
         int n = 0, cur = -1;
         cui_id *cand = cui__frame_alloc(ui, sizeof(cui_id) * (size_t)ui->prev_focus_count);
         for (int i = 0; i < ui->prev_focus_count; i++) {
+            const cui__focus_entry *e = &ui->prev_focus_order[i];
             if (ui->prev_modal_layer) {
-                if (ui->prev_focus_layers[i] != ui->prev_modal_layer) continue;
-            } else if (ui->prev_active_focus_scope) {
-                if (ui->prev_focus_scopes[i] != ui->prev_active_focus_scope) continue;
-            }
-            if (ui->prev_focus_order[i] == ui->focus) cur = n;
-            cand[n++] = ui->prev_focus_order[i];
+                if (e->layer != ui->prev_modal_layer) continue;
+            } else if (e->scope.inactive || e->scope.id != ui->prev_active_focus_scope) continue;
+            if (e->id == ui->focus) cur = n;
+            cand[n++] = e->id;
         }
         if (n > 0) {
             int dir = (ui->mods & CUI_MOD_SHIFT) ? -1 : 1;
@@ -962,16 +951,13 @@ void cui_request_wakeup(cui_ctx *ui, float seconds) { if (ui) cui__wake_in(ui, s
 
 void cui_push_focus_scope(cui_ctx *ui, cui_id id, bool active) {
     if (!ui) return;
-    if (ui->focus_scope_depth < 16)
-        ui->focus_scope_stack[ui->focus_scope_depth++] = ui->current_focus_scope;
-    ui->current_focus_scope = id;
-    if (active && id) ui->active_focus_scope = id;
+    int depth = ui->focus_scope_depth;
+    bool inactive = !active || (depth && ui->focus_scope_stack[depth - 1].inactive);
+    CUI__GROW(ui, ui->focus_scope_stack, depth, ui->focus_scope_cap, 1);
+    ui->focus_scope_stack[ui->focus_scope_depth++] = (cui__focus_scope){ id, inactive };
+    if (!inactive && id) ui->active_focus_scope = id;
 }
 
 void cui_pop_focus_scope(cui_ctx *ui) {
-    if (!ui) return;
-    if (ui->focus_scope_depth > 0)
-        ui->current_focus_scope = ui->focus_scope_stack[--ui->focus_scope_depth];
-    else
-        ui->current_focus_scope = 0;
+    if (ui && ui->focus_scope_depth) ui->focus_scope_depth--;
 }

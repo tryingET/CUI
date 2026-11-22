@@ -223,6 +223,8 @@ if (!cui_wants_keyboard(ui)) {                          /* skip while the user t
 }
 ```
 
+For a multi-pane workspace, wrap each pane's controls in `cui_focus_scope(ui, pane_id, is_active)` using a stable nonzero ID. Tab and Shift+Tab use the active pane from the last built frame. An inactive pane and its nested scopes are skipped, not disabled: their controls still take clicks. With no active pane, Tab visits unscoped controls; an open modal keeps Tab inside the modal instead.
+
 ## 7. Files and links
 
 ```c
