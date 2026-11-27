@@ -1562,7 +1562,7 @@ static void cui__trf_wheel(cui__trf *f) {
         double tm = v->start + u * range;
         v->start = tm - u * nr; v->end = v->start + nr;
     } else if (horiz) {
-        float dl = ui->scroll_dx != 0 ? ui->scroll_dx : ui->scroll_dy;
+        float dl = fabsf(ui->scroll_dx) >= fabsf(ui->scroll_dy) ? ui->scroll_dx : ui->scroll_dy;
         double dt = (double)dl * 40.0 / f->c.plot_w * range;
         v->start -= dt; v->end -= dt;
     } else {

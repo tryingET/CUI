@@ -1127,11 +1127,11 @@ static void test_trace_wheel_scroll_zoom(void) {
     double zoomed2 = c.view.end - c.view.start;
     CHECK(zoomed2 < zoomed * 0.85);
     CHECK(fabsf(c.view.scroll - 60.0f) < 1e-3f);
-    /* Shift+wheel pans horizontally without changing zoom or vertical scroll */
+    /* Shift+wheel pans horizontally using the dominant axis even with opposite-sign dx jitter */
     move(ui, build_tr_scroll, &c, r.x + r.w * 0.6f, r.y + r.h * 0.5f);
     double s0 = c.view.start;
     cui_input_key(ui, CUI_KEY_NONE, true, CUI_MOD_SHIFT);
-    cui_input_scroll(ui, 0.0f, -1.0f);
+    cui_input_scroll(ui, 0.1f, -1.0f);
     run(ui, build_tr_scroll, &c, 1);
     cui_input_key(ui, CUI_KEY_NONE, false, 0);
     run(ui, build_tr_scroll, &c, 1);
